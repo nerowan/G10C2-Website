@@ -2,9 +2,11 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <title>烟花庆祝 + 拖拽下方名单</title>
+  <title>欢庆元旦 - 班级抽屉 + 绚丽烟花 + 人物档案</title>
   <style>
-    /* ============ 全局基础 ============ */
+    /*******************************************
+     * 全局与页面布局
+     *******************************************/
     * {
       margin: 0; 
       padding: 0; 
@@ -12,17 +14,17 @@
       font-family: "Microsoft YaHei", sans-serif;
     }
     body {
-      background: #fee; /* 背景淡红 */
-      overflow: hidden;
+      background: #fee; /* 淡红色背景 */
+      overflow: hidden; /* 主要显示烟花Canvas */
       color: #333;
     }
 
-    /* Canvas烟花 */
+    /* 烟花Canvas */
     #fireworksCanvas {
       position: fixed;
       top: 0; left: 0;
       width: 100vw; height: 100vh;
-      z-index: -1; 
+      z-index: -1; /* 在最底 */
     }
 
     /* 顶部标题 */
@@ -41,21 +43,22 @@
       color: #c00;
     }
 
-    /* 下方拖拽抽屉 */
+    /*******************************************
+     * 下方可拖拽的抽屉
+     *******************************************/
     .drawer {
       position: fixed;
       left: 0; right: 0;
       bottom: 0;
-      height: calc(60vh); /* 最大高度 */
+      height: calc(60vh); /* 抽屉最大展开高度(60%屏幕) */
       background: rgba(255,255,255,0.9);
       border-top-left-radius: 15px;
       border-top-right-radius: 15px;
       box-shadow: 0 -2px 10px rgba(0,0,0,0.3);
-      transform: translateY(calc(60vh - 40px)); /* 初始只显示把手(40px) */
+      transform: translateY(calc(60vh - 40px)); /* 初始只显示40px把手 */
       transition: transform 0.2s ease-out;
       z-index: 999; 
-      /* 允许拖拽 */
-      touch-action: none; /* 防止浏览器默认上下滚动 */
+      touch-action: none; /* 允许拖拽(阻止浏览器默认上下滚动) */
     }
 
     .drawer-header {
@@ -96,6 +99,7 @@
       text-align: center;
       padding: 8px;
       transition: 0.3s;
+      cursor: pointer;
     }
     .member-card:hover {
       background: rgba(0,0,0,0.15);
@@ -112,58 +116,112 @@
       font-weight: bold;
       color: #333;
     }
+
+    /*******************************************
+     * 人物档案弹窗
+     *******************************************/
+    .profile-modal {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 280px;
+      background: rgba(0,0,0,0.85);
+      color: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+      display: none;
+      z-index: 9999;
+      text-align: center;
+    }
+    .profile-modal img {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      object-fit: cover;
+      margin-bottom: 10px;
+    }
+    .profile-modal h2 {
+      margin-bottom: 10px;
+      font-size: 1.1rem;
+      color: #ff0;
+    }
+    .profile-modal p {
+      margin-bottom: 10px;
+      font-size: 0.9rem;
+      color: #ddd;
+    }
+    .close-profile-btn {
+      background: #f44;
+      border: none;
+      color: #fff;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .close-profile-btn:hover {
+      background: #d33;
+    }
+
   </style>
 </head>
 <body>
 <canvas id="fireworksCanvas"></canvas>
 
 <header>
-  <h1>欢庆元旦 · 烟花秀</h1>
-  <p>拖动下方查看班级名单</p>
+  <h1>欢庆元旦 · 烟花盛典</h1>
+  <p>拖动下方看成员列表，点击卡片打开档案</p>
 </header>
 
 <!-- 下方可拖拽抽屉 -->
 <div class="drawer" id="drawer">
   <div class="drawer-header" id="drawerHeader">
-    —— 班级成员名单 ——
+    ——— 班级成员 ———
   </div>
   <div class="drawer-content">
     <div class="member-grid" id="memberGrid"></div>
   </div>
 </div>
 
+<!-- 人物档案弹窗 -->
+<div class="profile-modal" id="profileModal">
+  <img id="profileImg" src="" alt="photo">
+  <h2 id="profileName">姓名</h2>
+  <p id="profileDesc">未设置</p>
+  <button class="close-profile-btn" id="closeProfileBtn">关闭</button>
+</div>
+
 <script>
-/************************************************
- * 1. 更炫烟花特效
- ************************************************/
+/**************************************************
+ * 1. 更炫烟花特效 (Canvas)
+ **************************************************/
 const fwCanvas = document.getElementById('fireworksCanvas');
 const fwCtx = fwCanvas.getContext('2d');
 let FW_W, FW_H;
 
-function resizeCanvas(){
+function fwResize(){
   FW_W = fwCanvas.width = window.innerWidth;
   FW_H = fwCanvas.height = window.innerHeight;
 }
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
+window.addEventListener('resize', fwResize);
+fwResize();
 
 // 粒子类
-class FireworkParticle {
-  constructor(x, y, color) {
+class FWParticle {
+  constructor(x, y, color){
     this.x = x;
     this.y = y;
     this.color = color;
-    this.r = 2 + Math.random()*3; 
-    this.vx = (Math.random()-0.5)*8; 
+    this.r = 2 + Math.random()*3;
+    this.vx = (Math.random()-0.5)*8;
     this.vy = (Math.random()-0.5)*8;
     this.alpha = 1;
-    this.decay = 0.007 + Math.random()*0.015; 
+    this.decay = 0.007 + Math.random()*0.015;
   }
   update(){
     this.x += this.vx;
     this.y += this.vy;
-    // 重力或vy++可模拟下坠
-    this.vy += 0.02; 
+    this.vy += 0.02; // 重力
     this.alpha -= this.decay;
   }
   draw(ctx){
@@ -178,20 +236,19 @@ class FireworkParticle {
 }
 
 let fireworks = [];
-function drawFirework() {
-  // 随机爆点
+function createFirework(){
   let x = Math.random()*FW_W;
   let y = Math.random()*FW_H*0.7;
   let baseHue = Math.random()*360;
   let count = 80 + Math.random()*40; // 80~120
   for(let i=0; i<count; i++){
-    let color = `hsl(${baseHue + Math.random()*40}, 100%, 50%)`;
-    fireworks.push(new FireworkParticle(x, y, color));
+    let color = `hsl(${baseHue + Math.random()*40},100%,50%)`;
+    fireworks.push(new FWParticle(x, y, color));
   }
 }
-function animateFW() {
+function animateFW(){
   fwCtx.clearRect(0,0,FW_W,FW_H);
-  for(let i=fireworks.length-1; i>=0; i--){
+  for(let i=fireworks.length-1;i>=0;i--){
     let p = fireworks[i];
     p.update();
     p.draw(fwCtx);
@@ -200,210 +257,241 @@ function animateFW() {
   requestAnimationFrame(animateFW);
 }
 animateFW();
-setInterval(drawFirework, 1200); // 更频繁烟花
+setInterval(createFirework,1200);
 
-/************************************************
- * 2. 下方可拖拽抽屉
- ************************************************/
+/**************************************************
+ * 2. 下方抽屉可拖拽
+ **************************************************/
 const drawer = document.getElementById('drawer');
 const drawerHeader = document.getElementById('drawerHeader');
-
-// 抽屉状态
-let startY = 0;
-let currentY = 0;
-let drawerHeight = 0;
 let isDragging = false;
-
-// maximum height is 60vh, minimum = 40px
-// we track transform: translateY(??)
-function getDrawerMaxHeight(){
-  return window.innerHeight*0.6;
+let startY = 0;
+function getDrawerMaxOffset(){ // 60vh - 40
+  return window.innerHeight*0.6 - 40;
 }
-function getDrawerMinHeight(){
-  return 40;
-}
-function getDrawerOffset(){
-  // offset = transformY
-  // parse from style transform
+function getCurrentOffset(){
+  // parse transform y from style
   let style = window.getComputedStyle(drawer);
-  let matrix = style.transform || "none";
-  if(matrix==="none"){
-    // default => 60vh - 40px
-    return getDrawerMaxHeight() - getDrawerMinHeight();
+  let matrix = style.transform;
+  if(matrix==="none") {
+    return window.innerHeight*0.6 - 40; // default
   } else {
-    // matrix(1,0,0,1, x,y)
-    // but we only have y transform
+    // matrix(1,0,0,1, x, y)
+    // parse y
     let arr = matrix.match(/matrix\(.*,\s*(-?\d+(\.\d+)?)\)/);
-    // or matrix(1,0,0,1, 0, 123)
-    if(arr) {
-      return parseFloat(arr[1]);
-    }
-    return 0;
+    if(arr) return parseFloat(arr[1]);
   }
+  return 0;
 }
 
 function onDragStart(e){
   isDragging = true;
+  drawer.style.transition="none";
   startY = e.touches ? e.touches[0].clientY : e.clientY;
-  drawer.style.transition = "none";
 }
 function onDragMove(e){
   if(!isDragging) return;
-  let current = e.touches ? e.touches[0].clientY : e.clientY;
-  let dy = current - startY; 
-  // get current transform
-  let offset = getDrawerOffset();
+  let currentY = e.touches ? e.touches[0].clientY : e.clientY;
+  let dy = currentY - startY;
+  let offset = getCurrentOffset();
   let newOffset = offset + dy;
   // clamp
-  let maxOffset = getDrawerMaxHeight() - getDrawerMinHeight(); // max = 60vh-40
-  if(newOffset<0) newOffset=0; 
+  if(newOffset<0) newOffset=0;
+  let maxOffset = getDrawerMaxOffset();
   if(newOffset>maxOffset) newOffset=maxOffset;
   drawer.style.transform = `translateY(${newOffset}px)`;
-  startY = current; 
+  startY = currentY;
 }
 function onDragEnd(e){
   isDragging=false;
-  // maybe snap to nearest? or just keep
-  drawer.style.transition = "transform 0.2s ease-out";
+  drawer.style.transition="transform 0.2s ease-out";
 }
 
 drawerHeader.addEventListener('mousedown', onDragStart);
 drawerHeader.addEventListener('touchstart', onDragStart, {passive:false});
-
 window.addEventListener('mousemove', onDragMove);
 window.addEventListener('touchmove', onDragMove, {passive:false});
-
 window.addEventListener('mouseup', onDragEnd);
 window.addEventListener('touchend', onDragEnd);
 
-/************************************************
- * 3. 班级成员数据 + 生成网格
- ************************************************/
+/**************************************************
+ * 3. 班级成员数据 + 生成列表 + 档案弹窗
+ **************************************************/
 const memberGrid = document.getElementById('memberGrid');
+const profileModal = document.getElementById('profileModal');
+const profileImg = document.getElementById('profileImg');
+const profileName = document.getElementById('profileName');
+const profileDesc = document.getElementById('profileDesc');
+const closeProfileBtn = document.getElementById('closeProfileBtn');
+
 const members = [
   {
     name: "胡明波(化学老师)",
-    photo: "https://via.placeholder.com/100x100?text=%E8%83%A1%E6%98%8E%E6%B3%A2"
+    photo: "胡明波.jpg",
+    desc: ""
   },
   {
     name: "陈雨涵",
-    photo: "https://via.placeholder.com/100x100?text=%E9%99%88%E9%9B%A8%E6%B6%B5"
+    photo: "陈雨涵.jpg",
+    desc: ""
   },
   {
     name: "程湘婷",
-    photo: "https://via.placeholder.com/100x100?text=%E7%A8%8B%E6%B9%98%E5%A9%B7"
+    photo: "程湘婷.jpg",
+    desc: ""
   },
   {
     name: "韩昀希",
-    photo: "https://via.placeholder.com/100x100?text=%E9%9F%A9%E6%98%80%E5%B8%8C"
+    photo: "韩昀希.jpg",
+    desc: ""
   },
   {
     name: "和子鸣",
-    photo: "https://via.placeholder.com/100x100?text=%E5%92%8C%E5%AD%90%E9%B8%A3"
+    photo: "和子鸣.jpg",
+    desc: ""
   },
   {
     name: "江思宇",
-    photo: "https://via.placeholder.com/100x100?text=%E6%B1%9F%E6%80%9D%E5%AE%87"
+    photo: "江思宇.jpg",
+    desc: ""
   },
   {
     name: "李柏雅",
-    photo: "https://via.placeholder.com/100x100?text=%E6%9D%8E%E6%9F%8F%E9%9B%85"
+    photo: "李柏雅.jpg",
+    desc: ""
   },
   {
     name: "李梓瑞",
-    photo: "https://via.placeholder.com/100x100?text=%E6%9D%8E%E6%A2%93%E7%91%9E"
+    photo: "李梓瑞.jpg",
+    desc: ""
   },
   {
     name: "彭若谷",
-    photo: "https://via.placeholder.com/100x100?text=%E5%BD%AD%E8%8B%A5%E8%B0%B7"
+    photo: "彭若谷.jpg",
+    desc: ""
   },
   {
     name: "淇露",
-    photo: "https://via.placeholder.com/100x100?text=%E6%B7%87%E9%9C%B2"
+    photo: "淇露.jpg",
+    desc: ""
   },
   {
     name: "沈思桐",
-    photo: "https://via.placeholder.com/100x100?text=%E6%B2%88%E6%80%9D%E6%A1%90"
+    photo: "沈思桐.jpg",
+    desc: ""
   },
   {
     name: "苏哲",
-    photo: "https://via.placeholder.com/100x100?text=%E8%8B%8F%E5%93%B2"
+    photo: "苏哲.jpg",
+    desc: ""
   },
   {
     name: "万昊轩",
-    photo: "https://via.placeholder.com/100x100?text=%E4%B8%87%E6%98%8A%E8%BD%A9"
+    photo: "万昊轩.jpg",
+    desc: ""
   },
   {
     name: "王宇涵",
-    photo: "https://via.placeholder.com/100x100?text=%E7%8E%8B%E5%AE%87%E6%B6%B5"
+    photo: "王宇涵.jpg",
+    desc: ""
   },
   {
     name: "王卓然",
-    photo: "https://via.placeholder.com/100x100?text=%E7%8E%8B%E5%8D%93%E7%84%B6"
+    photo: "王卓然.jpg",
+    desc: ""
   },
   {
     name: "问斯涵",
-    photo: "https://via.placeholder.com/100x100?text=%E9%97%AE%E6%96%AF%E6%B6%B5"
+    photo: "问斯涵.jpg",
+    desc: ""
   },
   {
     name: "吴雨馨",
-    photo: "https://via.placeholder.com/100x100?text=%E5%90%B4%E9%9B%A8%E9%A6%A8"
+    photo: "吴雨馨.jpg",
+    desc: ""
   },
   {
     name: "徐浩宸",
-    photo: "https://via.placeholder.com/100x100?text=%E5%BE%90%E6%B5%A9%E5%AE%B8"
+    photo: "徐浩宸.jpg",
+    desc: ""
   },
   {
     name: "杨嘉玉",
-    photo: "https://via.placeholder.com/100x100?text=%E6%9D%A8%E5%98%89%E7%8E%89"
+    photo: "杨嘉玉.jpg",
+    desc: ""
   },
   {
     name: "张博彦",
-    photo: "https://via.placeholder.com/100x100?text=%E5%BC%A0%E5%8D%9A%E5%BD%A6"
+    photo: "张博彦.jpg",
+    desc: ""
   },
   {
     name: "张宸阳",
-    photo: "https://via.placeholder.com/100x100?text=%E5%BC%A0%E5%AE%B8%E9%98%B3"
+    photo: "张宸阳.jpg",
+    desc: ""
   },
   {
     name: "张弛",
-    photo: "https://via.placeholder.com/100x100?text=%E5%BC%A0%E5%BC%9B"
+    photo: "张弛.jpg",
+    desc: ""
   },
   {
     name: "张欣妍",
-    photo: "https://via.placeholder.com/100x100?text=%E5%BC%A0%E6%AC%A3%E5%A6%8D"
+    photo: "张欣妍.jpg",
+    desc: ""
   },
   {
     name: "张艺萱",
-    photo: "https://via.placeholder.com/100x100?text=%E5%BC%A0%E8%89%BA%E8%90%B1"
+    photo: "张艺萱.jpg",
+    desc: ""
   },
   {
     name: "支嘉戈",
-    photo: "https://via.placeholder.com/100x100?text=%E6%94%AF%E5%98%89%E6%88%88"
+    photo: "支嘉戈.jpg",
+    desc: ""
   },
   {
     name: "周润葆",
-    photo: "https://via.placeholder.com/100x100?text=%E5%91%A8%E6%B6%A6%E8%91%86"
+    photo: "周润葆.jpg",
+    desc: ""
   },
   {
     name: "周衣萱",
-    photo: "https://via.placeholder.com/100x100?text=%E5%91%A8%E8%A1%A3%E8%90%B1"
+    photo: "周衣萱.jpg",
+    desc: ""
   }
 ];
 
+// 生成卡片
 function buildMemberGrid(){
-  members.forEach(m=>{
+  memberGrid.innerHTML="";
+  members.forEach( m => {
     const card = document.createElement('div');
-    card.className = 'member-card';
-    card.innerHTML = `
+    card.className="member-card";
+    card.innerHTML=`
       <img class="member-photo" src="${m.photo}" alt="${m.name}">
       <div class="member-name">${m.name}</div>
     `;
+    card.addEventListener('click', ()=>{
+      openProfile(m);
+    });
     memberGrid.appendChild(card);
   });
 }
 buildMemberGrid();
 
+// 打开档案
+function openProfile(mem){
+  profileImg.src = mem.photo;
+  profileName.textContent = mem.name;
+  profileDesc.textContent = mem.desc ? mem.desc : "未设置";
+  profileModal.style.display = "block";
+}
+
+// 关闭
+closeProfileBtn.addEventListener('click', ()=>{
+  profileModal.style.display = "none";
+});
 </script>
 </body>
 </html>
